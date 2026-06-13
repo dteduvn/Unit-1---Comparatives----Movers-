@@ -1167,6 +1167,31 @@ const translateData = [
   {vi:"Cái thước thì dài hơn cục tẩy.", en:["The ruler is longer than the eraser."]},
 ];
 
+// ===== SESSION RESULTS TRACKING =====
+const sessionResults = {
+  "Spell It": { max: spellWords.length, items: {} },
+  "Match": { max: 6, items: {} },
+  "Build Sentences": { max: buildData.length, items: {} },
+  "Grammar Quiz": { max: quizData.length, items: {} },
+  "Dialogue": { max: dialogueLines.filter(l=>l.blank).length, items: {} },
+  "Translate": { max: translateData.length, items: {} },
+};
+// record first-attempt result for a question (only counts the first try)
+function recordResult(section, key, correct, studentAnswer, correctAnswer, question) {
+  const sec = sessionResults[section];
+  if (sec.items[key]) return; // already recorded first attempt
+  sec.items[key] = { question, correct, studentAnswer, correctAnswer };
+}
+function collectSessionSections() {
+  const sections = [];
+  for (const [name, data] of Object.entries(sessionResults)) {
+    const details = Object.values(data.items);
+    const score = details.filter(d => d.correct).length;
+    sections.push({ name, score, max: data.max, details });
+  }
+  return sections;
+}
+
 // ===== TTS =====
 let voices = [];
 let ttsReady = false;
@@ -1320,6 +1345,7 @@ function pressKey(letter, keyId, word) {
   if (!spellUserInput.includes('')) {
     const typed = spellUserInput.join('');
     const fb = document.getElementById('spell-feedback');
+    recordResult('Spell It', 'spell-' + spellIdx, typed === word, typed, word, 'Spell: ' + w.vi);
     if (typed === word) {
       fb.textContent = '🎉 Correct! Well done!';
       fb.style.color = 'var(--green)';
@@ -1398,6 +1424,7 @@ function selectMatch(btn) {
     const pairA = parseInt(matchSelected.dataset.pair);
     const pairB = parseInt(btn.dataset.pair);
     if (pairA === pairB) {
+      recordResult('Match', 'match-' + pairA, true, matchSelected.dataset.word + ' - ' + btn.dataset.word, matchPairs[pairA].left + ' - ' + matchPairs[pairA].right, 'Match: ' + matchPairs[pairA].left);
       matchSelected.classList.remove('selected');
       matchSelected.classList.add('correct');
       btn.classList.add('correct');
@@ -1409,6 +1436,10 @@ function selectMatch(btn) {
         document.getElementById('match-score').textContent = '🎉 All matched! Great job!';
       }
     } else {
+      const counterpartA = matchPairs[pairA].left === matchSelected.dataset.word ? matchPairs[pairA].right : matchPairs[pairA].left;
+      const counterpartB = matchPairs[pairB].left === btn.dataset.word ? matchPairs[pairB].right : matchPairs[pairB].left;
+      recordResult('Match', 'match-' + pairA, false, btn.dataset.word, counterpartA, 'Match: ' + matchSelected.dataset.word);
+      recordResult('Match', 'match-' + pairB, false, matchSelected.dataset.word, counterpartB, 'Match: ' + btn.dataset.word);
       matchSelected.classList.remove('selected');
       matchSelected.classList.add('wrong');
       btn.classList.add('wrong');
@@ -1486,6 +1517,7 @@ function checkBuild() {
   const typed = buildChosen.map(x=>x.word).join(' ');
   const correct = d.answer.join(' ');
   const fb = document.getElementById('build-feedback');
+  recordResult('Build Sentences', 'build-' + buildIdx, typed === correct, typed, correct, d.prompt);
   if (typed === correct) {
     fb.textContent = '🎉 Correct! / Đúng rồi!';
     fb.style.color = 'var(--green)';
@@ -1523,6 +1555,7 @@ function checkQuiz(i) {
   const opts = document.querySelectorAll('.quiz-opt');
   opts.forEach(o => o.disabled = true);
   const fb = document.getElementById('quiz-feedback');
+  recordResult('Grammar Quiz', 'quiz-' + quizIdx, i === q.ans, q.opts[i], q.opts[q.ans], q.q);
   if (i === q.ans) {
     opts[i].classList.add('correct');
     fb.textContent = '🎉 Correct! / Đúng!';
@@ -1585,7 +1618,9 @@ function checkDialogue() {
       const inp = document.getElementById('dlg-' + i);
       if (inp) {
         const val = inp.value.trim().toLowerCase();
-        if (val === line.answer.toLowerCase()) {
+        const isCorrect = val === line.answer.toLowerCase();
+        recordResult('Dialogue', 'dlg-' + i, isCorrect, inp.value.trim(), line.answer, 'Fill in: "' + line.before + '____' + line.after + '"');
+        if (isCorrect) {
           inp.style.borderColor = 'var(--green)';
           inp.style.color = 'var(--green)';
         } else {
@@ -1695,7 +1730,9 @@ function checkTranslate() {
   const typed = norm(inp.value);
   const fb = document.getElementById('translate-feedback');
   const correctAnswers = t.en.map(norm);
-  if (correctAnswers.includes(typed)) {
+  const isCorrect = correctAnswers.includes(typed);
+  recordResult('Translate', 'translate-' + translateIdx, isCorrect, inp.value.trim(), t.en[0], t.vi);
+  if (isCorrect) {
     inp.className = 'translate-input correct';
     fb.textContent = '🎉 Correct! / Đúng rồi!';
     fb.style.color = 'var(--green)';
@@ -1719,6 +1756,11 @@ renderDialogue();
 renderWrite();
 renderFlashcard();
 renderTranslate();
+</script>
+<script src="tracker.js"></script>
+<script>
+DTTracker.ensureStudentName();
+DTTracker.showSubmitButton('movers_u1_comparatives', 'Movers Unit 1 - Comparative Adjectives', collectSessionSections);
 </script>
 </body>
 </html>
